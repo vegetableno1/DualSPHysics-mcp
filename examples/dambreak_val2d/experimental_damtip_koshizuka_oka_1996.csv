@@ -1,0 +1,25 @@
+# Dam-tip (surge front) position of the 2D dam break, 1 m x 2 m water column.
+# Experimental data digitised from:
+#   S. Koshizuka and Y. Oka. Moving particle semi-implicit method for
+#   fragmentation of incompressible fluid. Nuclear Science and Engineering,
+#   Vol 123, pp. 421-434, 1996.
+# Values as shipped with DualSPHysics (examples/main/01_DamBreak/
+# EXP_X-DamTipPosition_Koshizula&Oka1996.txt, LGPL-2.1+ project):
+# time in seconds, X normalised by the column length (X/a; a = 1 m here,
+# so X/a equals the front position in metres).
+time_s,x_over_a
+0.092031603,1.128
+0.190699774,1.244
+0.266343115,1.464
+0.32214447,1.695
+0.368058691,1.903
+0.413950339,2.123
+0.446591422,2.365
+0.495801354,2.584
+0.521851016,2.804
+0.56462754,3.034
+0.594018059,3.219
+0.636591422,3.462
+0.669255079,3.704
+0.70214447,3.9
+0.751331828,4.132

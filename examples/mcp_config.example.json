@@ -1,0 +1,29 @@
+{
+  "mcpServers": {
+    "dualsphysics-mcp": {
+      "command": "uvx",
+      "args": ["dualsphysics-mcp"],
+      "env": {
+        "DSPH_GENCASE": "",
+        "DSPH_SOLVER": "",
+        "DSPH_PARTVTK": "",
+        "DSPH_MEASURETOOL": "",
+        "DSPH_JOBS_DIR": "",
+        "DSPH_OMP_THREADS": ""
+      }
+    },
+    "dualsphysics-mcp-local": {
+      "command": "/abs/path/to/DualSPHysics-mcp/.venv/bin/python",
+      "args": ["/abs/path/to/DualSPHysics-mcp/mcp_server.py"],
+      "cwd": "/abs/path/to/DualSPHysics-mcp",
+      "env": {
+        "DSPH_GENCASE": "/home/<user>/softwares/DualSPHysics/bin/linux/GenCase_linux64",
+        "DSPH_SOLVER": "/home/<user>/softwares/DualSPHysics/bin/linux/DualSPHysics5.4CPU_linux64",
+        "DSPH_PARTVTK": "/home/<user>/softwares/DualSPHysics/bin/linux/PartVTK_linux64",
+        "DSPH_MEASURETOOL": "/home/<user>/softwares/DualSPHysics/bin/linux/MeasureTool_linux64",
+        "DSPH_JOBS_DIR": "",
+        "DSPH_OMP_THREADS": "8"
+      }
+    }
+  }
+}

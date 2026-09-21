@@ -1,0 +1,27 @@
+# Dam-tip (surge front) position, 2D dam break with a 1 m x 2 m water column.
+# Digitised experimental data of Koshizuka & Oka (1996), rescaled by
+# Froude similarity to the 1 m column used by the DualSPHysics validation
+# layout (original experiment: 0.1 m x 0.2 m column; X here equals the
+# paper's normalised X/a because a = 1 m).
+#
+# Source: EXP_X-DamTipPosition_Koshizula&Oka1996.txt shipped with DualSPHysics
+# (examples/main/01_DamBreak, https://github.com/DualSPHysics/DualSPHysics).
+# Reference: S. Koshizuka and Y. Oka, "Moving particle semi-implicit method
+# for fragmentation of incompressible fluid", Nuclear Science and Engineering,
+# Vol 123, pp. 421-434, 1996.
+time_s,x_m
+0.092031603,1.128
+0.190699774,1.244
+0.266343115,1.464
+0.32214447,1.695
+0.368058691,1.903
+0.413950339,2.123
+0.446591422,2.365
+0.495801354,2.584
+0.521851016,2.804
+0.56462754,3.034
+0.594018059,3.219
+0.636591422,3.462
+0.669255079,3.704
+0.70214447,3.9
+0.751331828,4.132

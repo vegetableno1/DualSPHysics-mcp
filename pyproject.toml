@@ -1,0 +1,62 @@
+[project]
+name = "dualsphysics-mcp"
+version = "0.1.0"
+description = "DualSPHysics SPH solver toolchain (GenCase / CPU solver / PartVTK / MeasureTool) wrapped as MCP tools, with a 2D dam-break validation workflow (Koshizuka & Oka 1996)"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "dualsphysics-mcp contributors" }]
+dependencies = [
+    "mcp>=2.0,<3",
+    "pydantic>=2.7",
+]
+
+[project.scripts]
+dualsphysics-mcp = "dualsphysics_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dualsphysics_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests", "examples"]
+# .cursor/.trellis hold Trellis tooling, not project code.
+extend-exclude = [".cursor", ".trellis", "python=3.11"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# The case template embeds DualSPHysics XML attribute lines verbatim.
+"examples/dambreak_val2d/gen_dambreak_val2d.py" = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["src", "tests", "examples", "mcp_server.py"]
+disallow_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
