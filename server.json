@@ -1,0 +1,49 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.vegetableno1/dualsphysics",
+  "title": "DualSPHysics MCP",
+  "description": "Agent toolchain for the DualSPHysics SPH fluid dynamics solver: case preparation (GenCase), background CPU simulation with progress parsing, post-processing to VTK/CSV, and quantitative dam-break validation against the Koshizuka & Oka (1996) experiment.",
+  "repository": { "url": "https://github.com/vegetableno1/DualSPHysics-mcp", "source": "github" },
+  "version": "0.1.1",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "dualsphysics-mcp",
+      "version": "0.1.1",
+      "runtimeHint": "uvx",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "DSPH_GENCASE",
+          "description": "Path to the GenCase_linux64 executable (auto-discovered if unset)",
+          "isRequired": false
+        },
+        {
+          "name": "DSPH_SOLVER",
+          "description": "Path to the DualSPHysics CPU solver executable (auto-discovered if unset)",
+          "isRequired": false
+        },
+        {
+          "name": "DSPH_PARTVTK",
+          "description": "Path to the PartVTK_linux64 executable (auto-discovered if unset)",
+          "isRequired": false
+        },
+        {
+          "name": "DSPH_MEASURETOOL",
+          "description": "Path to the MeasureTool_linux64 executable (auto-discovered if unset)",
+          "isRequired": false
+        },
+        {
+          "name": "DSPH_JOBS_DIR",
+          "description": "Directory for simulation job outputs (defaults to ./jobs)",
+          "isRequired": false
+        },
+        {
+          "name": "DSPH_OMP_THREADS",
+          "description": "OpenMP threads for the CPU solver (defaults to CPU count)",
+          "isRequired": false
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,7 @@
 # DualSPHysics MCP
 
+<!-- mcp-name: io.github.vegetableno1/dualsphysics -->
+
 **Language:** English | [中文](README.zh-CN.md)
 
 DualSPHysics MCP wraps a local [DualSPHysics](https://dual.sphysics.org/) SPH
