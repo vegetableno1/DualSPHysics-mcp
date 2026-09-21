@@ -1,0 +1,37 @@
+# --- AI 工具链 / 工作流内部目录（不入公开仓库）---
+.claude/
+.cursor/
+.trellis/
+.codex/
+.agents/
+AGENTS.md
+
+# --- 环境与密钥 ---
+python=3.11/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# --- Python 构建产物 ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- DualSPHysics 运行产物（大文件，按需 git add -f 保留示例输出）---
+*_out/
+Part_*.bi4
+Part_*.vtu
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+.DS_Store
