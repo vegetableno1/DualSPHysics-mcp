@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.vegetableno1/dualsphysics",
   "title": "DualSPHysics MCP",
-  "description": "Agent toolchain for the DualSPHysics SPH fluid dynamics solver: case preparation (GenCase), background CPU simulation with progress parsing, post-processing to VTK/CSV, and quantitative dam-break validation against the Koshizuka & Oka (1996) experiment.",
+  "description": "Agent toolchain for the DualSPHysics SPH solver: case prep, simulation runs, post-processing.",
   "repository": { "url": "https://github.com/vegetableno1/DualSPHysics-mcp", "source": "github" },
   "version": "0.1.1",
   "packages": [
