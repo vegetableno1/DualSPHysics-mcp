@@ -2,6 +2,8 @@
 
 **语言：** [English](README.md) | 中文
 
+[![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/vegetableno1/dualsphysics-mcp)
+
 DualSPHysics MCP 将本机 [DualSPHysics](https://dual.sphysics.org/) SPH 流体
 求解器工具链封装为七个 [MCP](https://modelcontextprotocol.io/) 工具：案例前处理
 （GenCase）、带进度解析的后台 CPU 求解、后处理（PartVTK / MeasureTool），以及

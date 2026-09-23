@@ -4,6 +4,8 @@
 
 **Language:** English | [中文](README.zh-CN.md)
 
+[![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/vegetableno1/dualsphysics-mcp)
+
 DualSPHysics MCP wraps a local [DualSPHysics](https://dual.sphysics.org/) SPH
 fluid-solver toolchain as seven [Model Context Protocol](https://modelcontextprotocol.io/)
 tools: case pre-processing (GenCase), background CPU simulation with progress
