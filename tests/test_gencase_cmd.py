@@ -129,10 +129,18 @@ def test_run_gencase_requires_tool(clean_env: dict[str, str], monkeypatch) -> No
         config.clear_cache()
 
 
-def test_run_gencase_rejects_missing_xml(fake_toolchain: Path, monkeypatch) -> None:
-    monkeypatch.setenv("DSPH_GENCASE", str(fake_toolchain / "GenCase_linux64"))
+def test_run_gencase_rejects_missing_xml_without_tool(
+    clean_env: dict[str, str], monkeypatch
+) -> None:
+    """Missing case XML is DSPH_BAD_INPUT even with no toolchain installed.
+
+    Guards the validation-before-discovery order (CI machines have no
+    DualSPHysics anywhere; a local ~/softwares install must not mask it).
+    """
     config.clear_cache()
     try:
+        monkeypatch.setattr(config, "_candidate_dirs", lambda: [])
+        monkeypatch.setattr(config, "SCAN_ROOTS", ())
         with pytest.raises(BadInputError, match="case XML not found"):
             gencase.run_gencase("/nope/Nothing_Def.xml")
     finally:

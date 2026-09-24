@@ -141,14 +141,8 @@ def start_case(
     jobs_root: Path | None = None,
 ) -> dict[str, Any]:
     """Start the solver in the background; returns job_id + job layout paths."""
-    solver = config.tool_path("solver")
-    if solver is None or not solver.is_file():
-        raise ToolMissingError(
-            "DualSPHysics CPU solver not found; set DSPH_SOLVER "
-            "(build it with `make -f Makefile_cpu` from the official source, see "
-            "check_environment)"
-        )
-
+    # Input validation first: DSPH_BAD_INPUT wins over DSPH_TOOL_MISSING even
+    # when no toolchain is installed anywhere (CI machines; spec error matrix).
     case = Path(case_path).expanduser().resolve()
     case_xml = case if case.name.endswith(".xml") else append_suffix(case, ".xml")
     if not case_xml.is_file():
@@ -157,6 +151,14 @@ def start_case(
     if not case_bi4.is_file():
         raise BadInputError(
             f"particle file not found: {case_bi4} (GenCase must produce it; re-run gencase)"
+        )
+
+    solver = config.tool_path("solver")
+    if solver is None or not solver.is_file():
+        raise ToolMissingError(
+            "DualSPHysics CPU solver not found; set DSPH_SOLVER "
+            "(build it with `make -f Makefile_cpu` from the official source, see "
+            "check_environment)"
         )
 
     job_id = new_job_id()

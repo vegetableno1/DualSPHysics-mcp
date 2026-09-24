@@ -80,11 +80,28 @@ def test_build_measure_command_requires_exactly_one_points_source() -> None:
         )
 
 
-def test_resolve_dirdata_requires_exactly_one_source() -> None:
-    with pytest.raises(BadInputError, match="exactly one of dirdata / job_id"):
-        postprocess.run_partvtk(dirdata="/x", job_id="job-1")
-    with pytest.raises(BadInputError, match="exactly one of dirdata / job_id"):
-        postprocess.run_partvtk()
+def test_bad_input_wins_over_tool_missing(clean_env, monkeypatch) -> None:
+    """Argument violations raise DSPH_BAD_INPUT even with NO toolchain at all.
+
+    Regression guard for the CI failure: discovery used to run first, so on a
+    machine without DualSPHysics (GitHub Actions) these raised ToolMissingError
+    while local runs passed via the ~/softwares scan. Pure parameter rules
+    must never depend on tool existence (spec error matrix: BAD_INPUT first).
+    """
+    from dualsphysics_mcp import config
+
+    monkeypatch.setattr(config, "_candidate_dirs", lambda: [])
+    monkeypatch.setattr(config, "SCAN_ROOTS", ())
+    config.clear_cache()
+    try:
+        with pytest.raises(BadInputError, match="exactly one of dirdata / job_id"):
+            postprocess.run_partvtk(dirdata="/x", job_id="job-1")
+        with pytest.raises(BadInputError, match="exactly one of dirdata / job_id"):
+            postprocess.run_partvtk()
+        with pytest.raises(BadInputError, match="exactly one of points_file / pointsdef"):
+            postprocess.run_measure_tool(dirdata="/x", job_id="job-1")
+    finally:
+        config.clear_cache()
 
 
 def test_resolve_dirdata_job_layout(tmp_path: Path) -> None:

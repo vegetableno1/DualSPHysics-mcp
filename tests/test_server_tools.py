@@ -118,14 +118,16 @@ async def test_validate_dambreak_over_stdio(tmp_path: Path) -> None:
 
 
 async def test_gencase_without_toolchain_is_a_clean_tool_error(tmp_path: Path) -> None:
+    # A valid (existing) case XML so the input check passes and the tool
+    # lookup is what fails: proves validation order without a toolchain.
+    case_xml = tmp_path / "whatever_Def.xml"
+    case_xml.write_text("<case/>", encoding="utf-8")
     async with (
         stdio_client(server_params({"DSPH_JOBS_DIR": str(tmp_path)}, tmp_path)) as (read, write),
         ClientSession(read, write) as session,
     ):
         await session.initialize()
-        result = await session.call_tool(
-            "gencase", {"xml_path": str(tmp_path / "whatever_Def.xml")}
-        )
+        result = await session.call_tool("gencase", {"xml_path": str(case_xml)})
         assert result.is_error
         text = "".join(block.text for block in result.content if block.type == "text")
         assert "DSPH_TOOL_MISSING" in text
@@ -140,10 +142,11 @@ async def test_run_case_rejects_unknown_case_cleanly(tmp_path: Path) -> None:
         result = await session.call_tool(
             "run_case", {"case_path": str(tmp_path / "nope" / "CaseX")}
         )
-        # Fails as tool-missing (solver unconfigured) with the stable code.
+        # Input validation precedes tool lookup: unknown cases are DSPH_BAD_INPUT
+        # whether or not a solver is installed.
         assert result.is_error
         text = "".join(block.text for block in result.content if block.type == "text")
-        assert "DSPH_" in text
+        assert "DSPH_BAD_INPUT" in text
 
 
 async def test_job_status_unknown_id_is_clean_error(tmp_path: Path) -> None:

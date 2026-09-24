@@ -99,11 +99,14 @@ def run_partvtk(
     timeout: float = POSTPROCESS_TIMEOUT_S,
 ) -> dict[str, Any]:
     """Convert Part_*.bi4 to VTK files for visualisation (e.g. in ParaView)."""
+    # Input validation first: DSPH_BAD_INPUT wins over DSPH_TOOL_MISSING even
+    # when no toolchain is installed anywhere (CI machines; spec error matrix).
+    data_dir = _resolve_dirdata(dirdata, job_id, jobs_root)
+
     exe = config.tool_path("partvtk")
     if exe is None or not exe.is_file():
         raise ToolMissingError("PartVTK executable not found; set DSPH_PARTVTK")
 
-    data_dir = _resolve_dirdata(dirdata, job_id, jobs_root)
     prefix = Path(savevtk)
     if not prefix.is_absolute():
         prefix = data_dir.parent / prefix
@@ -182,10 +185,10 @@ def run_measure_tool(
     timeout: float = POSTPROCESS_TIMEOUT_S,
 ) -> dict[str, Any]:
     """Interpolate SPH values at points -> CSV time series (for validation)."""
-    exe = config.tool_path("measuretool")
-    if exe is None or not exe.is_file():
-        raise ToolMissingError("MeasureTool executable not found; set DSPH_MEASURETOOL")
-
+    # Input validation first: DSPH_BAD_INPUT wins over DSPH_TOOL_MISSING even
+    # when no toolchain is installed anywhere (CI machines; spec error matrix).
+    if (points_file is None) == (pointsdef is None):
+        raise BadInputError("pass exactly one of points_file / pointsdef")
     data_dir = _resolve_dirdata(dirdata, job_id, jobs_root)
     points_path: Path | None = None
     if points_file is not None:
@@ -194,6 +197,10 @@ def run_measure_tool(
         points_path = Path(points_file).expanduser().resolve()
         if not points_path.is_file():
             raise BadInputError(f"points file not found: {points_path}")
+
+    exe = config.tool_path("measuretool")
+    if exe is None or not exe.is_file():
+        raise ToolMissingError("MeasureTool executable not found; set DSPH_MEASURETOOL")
 
     prefix = Path(savecsv)
     if not prefix.is_absolute():

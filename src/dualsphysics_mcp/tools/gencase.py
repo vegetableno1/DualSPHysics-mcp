@@ -144,16 +144,18 @@ def run_gencase(
     timeout: float = GENCASE_TIMEOUT_S,
 ) -> dict[str, Any]:
     """Run GenCase synchronously (it takes seconds) and summarise its outputs."""
+    # Input validation first: DSPH_BAD_INPUT wins over DSPH_TOOL_MISSING even
+    # when no toolchain is installed anywhere (CI machines; spec error matrix).
+    xml = Path(xml_path).expanduser().resolve()
+    xml_actual = xml if xml.name.endswith(".xml") else append_suffix(xml, ".xml")
+    if not xml_actual.is_file():
+        raise BadInputError(f"case XML not found: {xml_actual}")
+
     exe = config.tool_path("gencase")
     if exe is None or not exe.is_file():
         raise ToolMissingError(
             "GenCase executable not found; set DSPH_GENCASE (see check_environment)"
         )
-
-    xml = Path(xml_path).expanduser().resolve()
-    xml_actual = xml if xml.name.endswith(".xml") else append_suffix(xml, ".xml")
-    if not xml_actual.is_file():
-        raise BadInputError(f"case XML not found: {xml_actual}")
 
     name = out_name or case_base_name(xml)
     out_dir = Path(output_dir).expanduser() if output_dir else xml.parent / f"{name}_out"
