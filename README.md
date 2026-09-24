@@ -9,11 +9,13 @@
 [![CI](https://github.com/vegetableno1/DualSPHysics-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/vegetableno1/DualSPHysics-mcp/actions/workflows/ci.yml)
 
 DualSPHysics MCP wraps a local [DualSPHysics](https://dual.sphysics.org/) SPH
-fluid-solver toolchain as seven [Model Context Protocol](https://modelcontextprotocol.io/)
-tools: case pre-processing (GenCase), background CPU simulation with progress
-parsing, post-processing (PartVTK / MeasureTool) and a quantitative dam-break
-validation against the Koshizuka & Oka (1996) experiment. The intended user is
-an agent (or a human driving an MCP client) that needs to run and *verify* SPH
+fluid-solver toolchain as ten [Model Context Protocol](https://modelcontextprotocol.io/)
+tools: case **creation** without hand-writing XML (`create_case` / `edit_case` /
+`describe_case`, pure Python with strong validation), case pre-processing
+(GenCase), background CPU simulation with progress parsing, post-processing
+(PartVTK / MeasureTool) and a quantitative dam-break validation against the
+Koshizuka & Oka (1996) experiment. The intended user is an agent (or a human
+driving an MCP client) that needs to *design*, run and *verify* SPH
 simulations, not just stare at them.
 
 The server only launches the DualSPHysics command-line tools as subprocesses.
@@ -30,6 +32,9 @@ problems", Computational Particle Mechanics 9:867–895,
 | Tool | Purpose |
 | --- | --- |
 | `check_environment` | Probe GenCase / solver / PartVTK / MeasureTool: resolved path, provenance (env var, PATH, scan), version, solver feature flags (e.g. builds without WaveGen); install hints when missing. |
+| `create_case` | Design a case `*_Def.xml` from a template plus overrides — no XML hand-writing, no solver needed. 2D dam-break family: water column, tank, downstream obstacle, dp, domain margins, TimeMax/TimeOut, SWL gauges. Returns a lattice-arithmetic particle estimate for self-checking. |
+| `edit_case` | Apply the same override vocabulary to an existing `*_Def.xml` (in place or to a `save_path`), re-validating the merged case. |
+| `describe_case` | Read-only summary of a `*_Def.xml`: dp, domain, column/tank/obstacle, timing, gauges, particle estimate — the agent self-check loop. |
 | `gencase` | Run GenCase: case `*_Def.xml` → `Case.xml` + `Case.bi4` (+ preview VTK). Returns particle counts (total/fluid/bound) parsed from VTK headers and the console. |
 | `run_case` | Start the CPU solver **in the background** (jobs/ directory, `status.json`, `Run.out`, `data/Part_*.bi4`) and return a `job_id` immediately. |
 | `job_status` | Poll a job: state, `t`/`tmax`, percent, step counters, the solver's `Time/Sec` throughput and its own projected finish time, particle counts, `Run.out` tail. |
@@ -37,8 +42,66 @@ problems", Computational Particle Mechanics 9:867–895,
 | `measure_tool` | MeasureTool: SPH interpolation at points → CSV time series (`-csvsep:1` enforced so parsing is deterministic). |
 | `validate_dambreak` | Pure-Python: reconstruct the dam-tip surge front from the MeasureTool CSV and compare against the embedded Koshizuka & Oka (1996) series; per-time errors + MAE/RMSE/max. |
 
-Workflow: `check_environment` → `gencase` → `run_case` → poll `job_status` →
-`partvtk` (visual) + `measure_tool` (quantitative) → `validate_dambreak`.
+Workflow: `check_environment` → `create_case` (design) → `describe_case`
+(self-check) → `gencase` (discretise, real counts) → `run_case` → poll
+`job_status` → `partvtk` (visual) + `measure_tool` (quantitative) →
+`validate_dambreak`.
+
+## Case creation (design experiments without XML)
+
+`create_case` / `edit_case` / `describe_case` cover the "design" stage: the
+agent describes a 2D dam-break-family experiment in structured parameters and
+the server renders a GenCase `*_Def.xml`. The `dambreak_val2d` template
+encodes the official validation layout (dp = 0.01 m, 1 m × 2 m column, 4 m × 3 m
+tank, TimeMax = 2 s, gauges at x = 0.2 and z = 0.03); templates are data, so
+more layouts can be added cheaply. Override keys (unknown keys are rejected
+with the vocabulary listed):
+
+| Key | Meaning |
+| --- | --- |
+| `dp` | particle spacing (m); counts scale as dp⁻² |
+| `column_length`, `column_height` | water column at the origin |
+| `tank_length`, `tank_height` | open-top tank around it |
+| `obstacle` | `{"x", "width", "height"}` solid box on the tank floor (downstream of the column), or `null` |
+| `margins` | domain = tank + margins (`x_min`/`z_min`/`x_max`/`z_max`, defaults 1/1/0.5/0.5 m splash headroom) |
+| `domain` | explicit `{"pointmin": [x, z], "pointmax": [x, z]}` box (overrides margins) |
+| `time_max`, `time_out` | TimeMax / TimeOut (s) |
+| `gravity`, `rhop0`, `cfl`, `visco` | physics constants |
+| `gauges` | list of `{"type": "vertical", "x", "z_top"?}` / `{"type": "horizontal", "z", "x_end"?}` SWL probes |
+
+Three guards come straight from measured GenCase behaviour: geometry outside
+the domain box is **silently clipped** (exit 0), so the domain must strictly
+contain the tank — margins must be positive and explicit `domain` overrides
+are containment-checked (`DSPH_BAD_INPUT` otherwise); `<setdrawmode
+mode="full"/>` is always emitted (without it the fluid loses a lattice row:
+20,000 → 19,701); 2D means y pinned to 0 in the XZ plane, and every box
+crosses y = 0 (geometry missing the plane yields zero particles, silently).
+
+Designing a variant — 1.5 m column plus a downstream obstacle:
+
+```
+create_case(out="cases/CaseObst_Def.xml",
+            overrides={"column_height": 1.5,
+                       "obstacle": {"x": 2.5, "width": 0.1, "height": 0.1}})
+  -> particle_estimate: fluid=15000 bound=1111 total=16111
+describe_case(path="cases/CaseObst_Def.xml")     # self-check the summary
+gencase(xml_path="cases/CaseObst_Def.xml")
+  -> particle_counts: total=16111 fluid=15000 bound=1111   # estimate == reality
+edit_case(path="cases/CaseObst_Def.xml", overrides={"time_max": 3.0})
+```
+
+| Case (measured with GenCase v5.4.354) | fluid | bound | total |
+| --- | --- | --- | --- |
+| baseline (template defaults) | 20,000 | 1,001 | 21,001 |
+| column 1.5 m + obstacle 0.1×0.1 at x = 2.5 | 15,000 | 1,111 (990 + 121) | 16,111 |
+| same with dp = 0.008 | 31,250 | 1,251 | 32,501 |
+
+The estimate arithmetic (fluid `round(L/dp)` per axis, open-tank shell
+`(round(L/dp)+1) + 2·round(H/dp)`, solid obstacle `(round(w/dp)+1)·(round(h/dp)+1)`
+replacing its floor row) was verified against real GenCase runs on eight
+configurations and is reported with a note that GenCase's own summary is
+authoritative. A programmatic demo lives in
+[`examples/create_case_demo.py`](examples/create_case_demo.py).
 
 ## Domain contracts (hard-won facts)
 
@@ -208,9 +271,12 @@ uv run ruff check .
 
 The suite is green **without** any solver installed: tool discovery, command
 construction, Run.out parsing (real v5.0/v5.4 log fixtures), validation math
-(hand-computed synthetic CSVs) and a stdio end-to-end test that spawns the
-server and drives all seven tools. Tests marked `solver` additionally exercise
-the real toolchain when one is installed locally and auto-skip otherwise.
+(hand-computed synthetic CSVs), case generation (XML structure, override
+validation, edit/describe round trips, particle-estimate anchors measured
+against a real GenCase) and a stdio end-to-end test that spawns the server
+and drives the case-creation tools with no toolchain at all. Tests marked
+`solver` additionally exercise the real toolchain when one is installed
+locally and auto-skip otherwise.
 
 ## Contents
 
@@ -222,17 +288,19 @@ DualSPHysics-mcp/
 ├── mcp_server.py                  stdio entry shim (hub convention)
 ├── .env.example                   DSPH_* variable template
 ├── src/dualsphysics_mcp/
-│   ├── server.py                  MCPServer + the 7 tools (pydantic results)
+│   ├── server.py                  MCPServer + the 10 tools (pydantic results)
 │   ├── config.py                  env vars + tool discovery
 │   ├── errors.py                  stable error codes
 │   └── tools/
 │       ├── environment.py         check_environment
+│       ├── casegen.py             create_case / edit_case / describe_case
 │       ├── gencase.py             gencase
 │       ├── runner.py + runout.py  run_case / job_status (+ Run.out parser)
 │       ├── postprocess.py         partvtk / measure_tool
 │       └── validate.py            validate_dambreak (+ embedded experiment)
 ├── examples/
 │   ├── dambreak_val2d/            case XML generator, points, experiment CSV
+│   ├── create_case_demo.py        create_case baseline + variant demo
 │   └── mcp_config.example.json    client registration templates
 └── tests/                         pytest suite (solver tests auto-skip)
 ```

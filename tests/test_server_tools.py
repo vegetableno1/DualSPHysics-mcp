@@ -1,4 +1,4 @@
-"""End-to-end over stdio: spawn the server, drive all seven tools.
+"""End-to-end over stdio: spawn the server, drive all ten tools.
 
 No solver needed: the environment is forced "no toolchain" for the
 deterministic assertions, and the local toolchain (when present) is probed
@@ -19,6 +19,9 @@ from tests.conftest import LOCAL_TOOLCHAIN, REPO_ROOT
 
 EXPECTED_TOOLS = {
     "check_environment",
+    "create_case",
+    "edit_case",
+    "describe_case",
     "gencase",
     "run_case",
     "job_status",
@@ -56,7 +59,7 @@ def server_params(env_extra: dict[str, str], home: Path) -> StdioServerParameter
     )
 
 
-async def test_stdio_server_registers_all_seven_tools(tmp_path: Path) -> None:
+async def test_stdio_server_registers_all_tools(tmp_path: Path) -> None:
     async with (
         stdio_client(server_params({}, tmp_path)) as (read, write),
         ClientSession(read, write) as session,
@@ -115,6 +118,71 @@ async def test_validate_dambreak_over_stdio(tmp_path: Path) -> None:
         assert payload["n_samples"] == 2
         assert payload["mae_m"] >= 0
         assert payload["experiment"] == "koshizuka1996"
+
+
+async def test_case_creation_round_trip_over_stdio(tmp_path: Path) -> None:
+    """create_case -> describe_case -> edit_case works with NO toolchain.
+
+    The case tools are pure Python; only gencase needs DualSPHysics.
+    """
+    case_out = tmp_path / "cases" / "CaseVariant_Def.xml"
+    overrides = {
+        "column_height": 1.5,
+        "obstacle": {"x": 2.5, "width": 0.1, "height": 0.1},
+    }
+    async with (
+        stdio_client(server_params({}, tmp_path)) as (read, write),
+        ClientSession(read, write) as session,
+    ):
+        await session.initialize()
+        created = await session.call_tool(
+            "create_case", {"out": str(case_out), "overrides": overrides}
+        )
+        assert not created.is_error
+        payload = created.structured_content
+        assert payload is not None
+        assert payload["applied"] == ["column_height", "obstacle"]
+        assert payload["case"]["particle_estimate"] == {
+            "fluid": 15000,
+            "bound": 1111,
+            "total": 16111,
+            "axes": {
+                "column_x": 100,
+                "column_z": 150,
+                "tank_x": 400,
+                "tank_z": 300,
+                "obstacle_x": 11,
+                "obstacle_z": 11,
+            },
+            "note": payload["case"]["particle_estimate"]["note"],
+        }
+        assert (
+            payload["obstacle_mk_note"] is not None
+            and "MKBound 11" in (payload["obstacle_mk_note"])
+        )
+
+        described = await session.call_tool("describe_case", {"path": str(case_out)})
+        assert not described.is_error
+        assert described.structured_content is not None
+        assert described.structured_content["case"]["column"] == [1.0, 1.5]
+
+        edited = await session.call_tool(
+            "edit_case", {"path": str(case_out), "overrides": {"time_max": 3.0}}
+        )
+        assert not edited.is_error
+        assert edited.structured_content is not None
+        assert edited.structured_content["case"]["time_max"] == 3.0
+        assert edited.structured_content["applied"] == ["time_max"]
+
+        # Validation order: bad numbers are DSPH_BAD_INPUT without any
+        # toolchain and without touching the filesystem.
+        bad = await session.call_tool(
+            "create_case",
+            {"out": str(tmp_path / "nope.xml"), "overrides": {"dp": -1}},
+        )
+        assert bad.is_error
+        text = "".join(block.text for block in bad.content if block.type == "text")
+        assert "DSPH_BAD_INPUT" in text and "'dp' must be > 0" in text
 
 
 async def test_gencase_without_toolchain_is_a_clean_tool_error(tmp_path: Path) -> None:

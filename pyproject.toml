@@ -1,7 +1,7 @@
 [project]
 name = "dualsphysics-mcp"
-version = "0.1.1"
-description = "DualSPHysics SPH solver toolchain (GenCase / CPU solver / PartVTK / MeasureTool) wrapped as MCP tools, with a 2D dam-break validation workflow (Koshizuka & Oka 1996)"
+version = "0.2.0"
+description = "DualSPHysics SPH solver toolchain (GenCase / CPU solver / PartVTK / MeasureTool) wrapped as MCP tools: create cases without hand-writing XML, run simulations, post-process, and validate a 2D dam-break against Koshizuka & Oka (1996)"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"

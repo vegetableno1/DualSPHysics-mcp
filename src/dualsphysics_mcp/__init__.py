@@ -8,4 +8,4 @@ invoked as a subprocess on the user's machine (DualSPHysics is LGPL-2.1+,
 subprocess invocation carries no licence obligations for this MIT package).
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

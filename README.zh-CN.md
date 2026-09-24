@@ -7,10 +7,12 @@
 [![CI](https://github.com/vegetableno1/DualSPHysics-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/vegetableno1/DualSPHysics-mcp/actions/workflows/ci.yml)
 
 DualSPHysics MCP 将本机 [DualSPHysics](https://dual.sphysics.org/) SPH 流体
-求解器工具链封装为七个 [MCP](https://modelcontextprotocol.io/) 工具：案例前处理
-（GenCase）、带进度解析的后台 CPU 求解、后处理（PartVTK / MeasureTool），以及
-对照 Koshizuka & Oka (1996) 实验的溃坝定量验证。目标用户是需要"跑通并验证"
-SPH 仿真的 agent（或驱动 MCP 客户端的人），而不只是看动画。
+求解器工具链封装为十个 [MCP](https://modelcontextprotocol.io/) 工具：**无需手写
+XML 的案例创作**（`create_case` / `edit_case` / `describe_case`，纯 Python、强
+校验）、案例前处理（GenCase）、带进度解析的后台 CPU 求解、后处理
+（PartVTK / MeasureTool），以及对照 Koshizuka & Oka (1996) 实验的溃坝定量验证。
+目标用户是需要"设计、跑通并验证" SPH 仿真的 agent（或驱动 MCP 客户端的人），
+而不只是看动画。
 
 本 server 只以子进程方式调用 DualSPHysics 命令行工具，
 **不分发** DualSPHysics 本体：DualSPHysics 是 **LGPL-2.1-or-later** 自由软件，
@@ -25,6 +27,9 @@ problems", Computational Particle Mechanics 9:867–895,
 | 工具 | 作用 |
 | --- | --- |
 | `check_environment` | 探测 GenCase / 求解器 / PartVTK / MeasureTool：解析到的路径、来源（环境变量 / PATH / 扫描）、版本、求解器特性（如无造波功能的构建）；缺失时给安装指引。 |
+| `create_case` | 用"模板 + 参数覆盖"设计案例 `*_Def.xml`——不手写 XML、不需要求解器。2D 溃坝家族：水柱、水槽、下游障碍物、dp、域边距、TimeMax/TimeOut、SWL gauges；返回格点法粒子数估算供自检。 |
+| `edit_case` | 对已有 `*_Def.xml` 应用同一套覆盖词汇表（就地修改或另存 `save_path`），合并后整体重校验。 |
+| `describe_case` | 只读摘要 `*_Def.xml`：dp、域、水柱/水槽/障碍物、时序、gauges、粒子估算——agent 的自检闭环。 |
 | `gencase` | 运行 GenCase：案例 `*_Def.xml` → `Case.xml` + `Case.bi4`（+ 预览 VTK）。返回从 VTK 头与控制台解析的粒子数（总/流体/边界）。 |
 | `run_case` | **后台**启动 CPU 求解器（jobs/ 目录、`status.json`、`Run.out`、`data/Part_*.bi4`），立即返回 `job_id`。 |
 | `job_status` | 轮询作业：状态、`t`/`tmax`、百分比、步数计数、求解器 `Time/Sec` 吞吐与其自估完成时间、粒子数、`Run.out` 尾部。 |
@@ -32,8 +37,59 @@ problems", Computational Particle Mechanics 9:867–895,
 | `measure_tool` | MeasureTool：点位 SPH 插值 → CSV 时序（强制 `-csvsep:1` 逗号，保证解析确定）。 |
 | `validate_dambreak` | 纯 Python：从 MeasureTool CSV 重建溃坝前锋位置，与内置 Koshizuka & Oka (1996) 序列对比；逐时刻误差 + MAE/RMSE/最大误差。 |
 
-工作流：`check_environment` → `gencase` → `run_case` → 轮询 `job_status` →
+工作流：`check_environment` → `create_case`（设计）→ `describe_case`（自检）→
+`gencase`（离散化、真实粒子数）→ `run_case` → 轮询 `job_status` →
 `partvtk`（可视化）+ `measure_tool`（定量）→ `validate_dambreak`。
+
+## 案例创作（不写 XML 设计实验）
+
+`create_case` / `edit_case` / `describe_case` 覆盖"设计"阶段：agent 用结构化
+参数描述一个 2D 溃坝家族实验，server 渲染出 GenCase 的 `*_Def.xml`。
+`dambreak_val2d` 模板内置官方验证布局（dp = 0.01 m、1 m × 2 m 水柱、4 m × 3 m
+水槽、TimeMax = 2 s、x = 0.2 与 z = 0.03 两根 gauges）；模板是数据不是代码，
+后续加布局很便宜。覆盖键（未知键会被拒并附上词汇表清单）：
+
+| 键 | 含义 |
+| --- | --- |
+| `dp` | 粒子间距（m）；粒子数按 dp⁻² 缩放 |
+| `column_length`、`column_height` | 原点处的水柱尺寸 |
+| `tank_length`、`tank_height` | 敞顶水槽尺寸 |
+| `obstacle` | `{"x", "width", "height"}` 立在水槽底面的实心方柱（须在水柱下游），或 `null` |
+| `margins` | 域 = 水槽 + 边距（`x_min`/`z_min`/`x_max`/`z_max`，默认 1/1/0.5/0.5 m 飞溅余量） |
+| `domain` | 显式域盒 `{"pointmin": [x, z], "pointmax": [x, z]}`（优先于 margins） |
+| `time_max`、`time_out` | TimeMax / TimeOut（秒） |
+| `gravity`、`rhop0`、`cfl`、`visco` | 物理常数 |
+| `gauges` | `{"type": "vertical", "x", "z_top"?}` / `{"type": "horizontal", "z", "x_end"?}` SWL 探针列表 |
+
+三道防线直接来自实测的 GenCase 行为：几何越出域盒会被**静默裁剪**
+（退出码 0），因此域必须严格包住水槽——边距必须为正、显式 `domain` 覆盖要做
+包含性校验（否则 `DSPH_BAD_INPUT`）；`<setdrawmode mode="full"/>` 固定携带
+（缺了流体会少一层格点：20,000 → 19,701）；2D 即 XZ 平面 y 钉死为 0，且每个
+盒子都跨过 y = 0（不跨该平面的几何会静默产生 0 个粒子）。
+
+设计一个变体——水柱 1.5 m + 下游障碍物：
+
+```
+create_case(out="cases/CaseObst_Def.xml",
+            overrides={"column_height": 1.5,
+                       "obstacle": {"x": 2.5, "width": 0.1, "height": 0.1}})
+  -> particle_estimate: fluid=15000 bound=1111 total=16111
+describe_case(path="cases/CaseObst_Def.xml")     # 自检摘要
+gencase(xml_path="cases/CaseObst_Def.xml")
+  -> particle_counts: total=16111 fluid=15000 bound=1111   # 估算 == 实测
+edit_case(path="cases/CaseObst_Def.xml", overrides={"time_max": 3.0})
+```
+
+| 案例（GenCase v5.4.354 实测） | 流体 | 边界 | 总数 |
+| --- | --- | --- | --- |
+| 基准（模板默认） | 20,000 | 1,001 | 21,001 |
+| 水柱 1.5 m + x=2.5 处 0.1×0.1 障碍物 | 15,000 | 1,111（990 + 121） | 16,111 |
+| 同上但 dp = 0.008 | 31,250 | 1,251 | 32,501 |
+
+估算算式（流体每轴 `round(L/dp)`；敞顶水槽壳 `(round(L/dp)+1) + 2·round(H/dp)`；
+实心障碍物 `(round(w/dp)+1)·(round(h/dp)+1)` 并顶替其底面格点行）已对照真实
+GenCase 八组配置验证，且结果里注明以 GenCase 自己的粒子汇总为准。程序化演示见
+[`examples/create_case_demo.py`](examples/create_case_demo.py)。
 
 ## 领域契约（踩坑实录）
 
@@ -188,9 +244,10 @@ uv run ruff check .
 ```
 
 **无求解器环境全套全绿**：工具发现、命令构造、Run.out 解析（真实 v5.0/v5.4
-日志样本）、验证数学（手算合成 CSV）、以及拉起 server 走全部 7 个工具的
-stdio 端到端测试。标记 `solver` 的用例在本机装有工具链时额外实测，
-否则自动跳过。
+日志样本）、验证数学（手算合成 CSV）、案例生成（XML 结构、覆盖参数校验、
+edit/describe 往返、对照真实 GenCase 实测的粒子估算锚点）、以及在完全没有
+工具链的环境下拉起 server 走案例创作工具的 stdio 端到端测试。标记 `solver`
+的用例在本机装有工具链时额外实测，否则自动跳过。
 
 ## 目录
 
@@ -202,17 +259,19 @@ DualSPHysics-mcp/
 ├── mcp_server.py                  stdio 入口 shim（hub 惯例）
 ├── .env.example                   DSPH_* 变量模板
 ├── src/dualsphysics_mcp/
-│   ├── server.py                  MCPServer + 7 个工具（pydantic 返回）
+│   ├── server.py                  MCPServer + 10 个工具（pydantic 返回）
 │   ├── config.py                  环境变量 + 工具发现
 │   ├── errors.py                  稳定错误码
 │   └── tools/
 │       ├── environment.py         check_environment
+│       ├── casegen.py             create_case / edit_case / describe_case
 │       ├── gencase.py             gencase
 │       ├── runner.py + runout.py  run_case / job_status（+ Run.out 解析）
 │       ├── postprocess.py         partvtk / measure_tool
 │       └── validate.py            validate_dambreak（+ 内置实验数据）
 ├── examples/
 │   ├── dambreak_val2d/            案例 XML 生成器、点位、实验 CSV
+│   ├── create_case_demo.py        create_case 基准 + 变体演示
 │   └── mcp_config.example.json    客户端注册模板
 └── tests/                         pytest 套件（求解器用例自动跳过）
 ```

@@ -2,14 +2,14 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.vegetableno1/dualsphysics",
   "title": "DualSPHysics MCP",
-  "description": "Agent toolchain for the DualSPHysics SPH solver: case prep, simulation runs, post-processing.",
+  "description": "Agent toolchain for the DualSPHysics SPH solver: case creation, runs, post-processing, validation.",
   "repository": { "url": "https://github.com/vegetableno1/DualSPHysics-mcp", "source": "github" },
-  "version": "0.1.1",
+  "version": "0.2.0",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "dualsphysics-mcp",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "runtimeHint": "uvx",
       "transport": { "type": "stdio" },
       "environmentVariables": [

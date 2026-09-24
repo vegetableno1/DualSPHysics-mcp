@@ -1,5 +1,6 @@
-"""MCP server (stdio transport): check_environment / gencase / run_case /
-job_status / partvtk / measure_tool / validate_dambreak.
+"""MCP server (stdio transport): check_environment / create_case / edit_case /
+describe_case / gencase / run_case / job_status / partvtk / measure_tool /
+validate_dambreak.
 
 Stdio is the only transport. stdout belongs to the protocol — nothing in this
 module may print to stdout.
@@ -15,15 +16,18 @@ Tool-output design:
 - domain errors surface as ``ToolError("<CODE>: <message>")`` with stable
   codes (DSPH_TOOL_MISSING, DSPH_BAD_INPUT, DSPH_RUN_FAILED, DSPH_JOB_NOT_FOUND).
 
-Workflow for the 2D dam-break validation showcase::
+Workflow for a designed (not pre-shipped) 2D dam-break experiment::
 
     check_environment()
-    gencase(xml_path="examples/dambreak_val2d/CaseDambreakVal2D_Def.xml")
-    run_case(case_path="<out>/CaseDambreakVal2D")       # -> job_id
-    job_status(job_id)                                  # poll to 100%
-    partvtk(job_id=job_id)
-    measure_tool(job_id=job_id, points_file="examples/dambreak_val2d/points_damtip.txt")
-    validate_dambreak(csv_path="<measure csv>", points_file=".../points_damtip.txt")
+    create_case(out="cases/MyDambreak_Def.xml", overrides={...})   # pure Python
+    describe_case(path="cases/MyDambreak_Def.xml")                # self-check
+    gencase(xml_path="cases/MyDambreak_Def.xml")                  # real counts
+    run_case(case_path="<out>/MyDambreak") -> job_id              # background
+    job_status(job_id) ... partvtk / measure_tool / validate_dambreak
+
+The showcase workflow against the pre-generated validation case
+(examples/dambreak_val2d/CaseDambreakVal2D_Def.xml) uses the same tools
+from gencase onwards.
 """
 
 from __future__ import annotations
@@ -36,7 +40,7 @@ from pydantic import BaseModel, Field
 
 from . import __version__
 from .errors import DualSphysError
-from .tools import environment, postprocess, runner, validate
+from .tools import casegen, environment, postprocess, runner, validate
 from .tools import gencase as gencase_mod
 
 mcp = MCPServer("dualsphysics-mcp")
@@ -92,6 +96,68 @@ class GencaseResult(BaseModel):
     stderr_tail: str = ""
     duration_s: float
     next_step: str
+
+
+class CaseGauge(BaseModel):
+    name: str
+    type: str = Field(description="vertical (fixed x, scans z) | horizontal (fixed z, scans x)")
+    x: float | None = Field(default=None, description="Vertical gauge position (m)")
+    z: float | None = Field(default=None, description="Horizontal gauge height (m)")
+    z_top: float | None = Field(default=None, description="Vertical gauge top (m)")
+    x_end: float | None = Field(default=None, description="Horizontal gauge far end (m)")
+
+
+class ParticleEstimate(BaseModel):
+    fluid: int
+    bound: int
+    total: int
+    axes: dict[str, int] = Field(description="Particles per lattice axis (fluid/tank/obstacle)")
+    note: str = Field(description="Estimate arithmetic; GenCase output is authoritative")
+
+
+class CaseSummary(BaseModel):
+    dp: float = Field(description="Initial inter-particle spacing (m)")
+    pointmin: list[float] = Field(description="Domain box min [x, z]; y is pinned to 0 (2D)")
+    pointmax: list[float] = Field(description="Domain box max [x, z]")
+    column: list[float] = Field(description="Water column [length, height] at the origin (m)")
+    tank: list[float] = Field(description="Open-top tank [length, height] (m)")
+    obstacle: list[float] | None = Field(
+        default=None, description="Obstacle [x, width, height] standing on the tank floor (m)"
+    )
+    time_max: float
+    time_out: float
+    gravity: float
+    rhop0: int
+    cfl: float
+    visco: float
+    gauges: list[CaseGauge]
+    particle_estimate: ParticleEstimate
+
+
+class CaseCreated(BaseModel):
+    template: str
+    out_path: str
+    applied: list[str] = Field(description="Override keys applied (sorted)")
+    case: CaseSummary
+    obstacle_mk_note: str | None = Field(
+        default=None, description="Absolute MKBound id of the obstacle for post-processing"
+    )
+    next_step: str
+
+
+class CaseEdited(BaseModel):
+    path: str = Field(description="Case XML that was read")
+    saved_to: str = Field(description="Where the edited case was written (path or save_path)")
+    applied: list[str] = Field(description="Override keys applied (sorted)")
+    case: CaseSummary
+    obstacle_mk_note: str | None = None
+
+
+class CaseDescribed(BaseModel):
+    path: str
+    template: str = Field(description="Vocabulary the case was recognised as")
+    case: CaseSummary
+    obstacle_mk_note: str | None = None
 
 
 class JobStarted(BaseModel):
@@ -206,6 +272,108 @@ def check_environment() -> EnvironmentReport:
     report = environment.check_environment()
     report["server_version"] = __version__
     return EnvironmentReport(**report)
+
+
+@mcp.tool()
+def create_case(
+    out: str,
+    template: str = "dambreak_val2d",
+    overrides: dict[str, Any] | None = None,
+) -> CaseCreated:
+    """Create a GenCase case XML (`*_Def.xml`) from a template plus overrides.
+
+    Pure Python — no solver needed. Designs a 2D dam-break-family experiment
+    in the XZ plane (y pinned to 0) WITHOUT hand-writing XML, with strong
+    parameter validation and a lattice-arithmetic particle estimate to
+    self-check the design before running gencase.
+
+    The `dambreak_val2d` template reproduces the official validation layout:
+    dp=0.01, 1 m x 2 m water column at the origin, 4 m x 3 m open-top tank,
+    domain (-1, 0, -1)..(4.5, 0, 3.5), TimeMax=2 s, TimeOut=0.01 s, one
+    vertical SWL gauge (x=0.2) and one horizontal (z=0.03). GenCase-measured
+    baseline counts: fluid 20,000 + bound 1,001 = 21,001.
+
+    Overrides (all optional; unknown keys are DSPH_BAD_INPUT):
+    - dp: float > 0 — particle spacing (m); particle counts scale as dp^-2.
+    - column_length / column_height: floats > 0 — water column at the origin.
+    - tank_length / tank_height: floats > 0 — open-top tank around it.
+    - obstacle: {"x": float, "width": float, "height": float} | null — solid
+      box standing on the tank floor; x must be >= column_length (downstream)
+      and the box must stay inside the tank. Post-processing absolute MK is 11.
+    - margins: {"x_min"?, "z_min"?, "x_max"?, "z_max"?} — domain box = tank
+      expanded by these margins (defaults 1.0 / 1.0 / 0.5 / 0.5 m for splash
+      headroom). All must be > 0: GenCase silently clips geometry that leaves
+      the domain, so the guard rejects anything that could clip.
+    - domain: {"pointmin": [x, z], "pointmax": [x, z]} — explicit domain box
+      (overrides margins); must strictly contain the tank.
+    - time_max / time_out: floats — TimeMax / TimeOut (s); 0 < time_out <= time_max.
+    - gravity, rhop0, cfl, visco: floats — physics constants (defaults
+      9.81, 1000, 0.2, 0.02 artificial viscosity).
+    - gauges: list of {"type": "vertical", "x": float, "z_top": float?} or
+      {"type": "horizontal", "z": float, "x_end": float?} — SWL probes
+      (vertical: free-surface height at fixed x; horizontal: front position
+      at fixed z). Replaces the template gauges; [] removes them.
+
+    The written XML always carries `<setdrawmode mode="full"/>` (without it
+    the fluid loses its boundary lattice row) and 2D y=0 domain planes.
+
+    Args:
+        out: Output file path (a `.xml` suffix is appended when missing;
+            the `_Def` naming convention keeps gencase output tidy).
+        template: Template name (currently "dambreak_val2d").
+        overrides: Override dict, see list above.
+    """
+    try:
+        result = casegen.create_case(out=out, template=template, overrides=overrides)
+    except DualSphysError as exc:
+        raise ToolError(str(exc)) from exc
+    return CaseCreated(**result)
+
+
+@mcp.tool()
+def edit_case(
+    path: str,
+    overrides: dict[str, Any] | None = None,
+    save_path: str | None = None,
+) -> CaseEdited:
+    """Edit an existing `*_Def.xml` with the create_case override vocabulary.
+
+    Reads the case (must parse as the 2D dam-break family: one fluid drawbox,
+    one tank drawbox, optional obstacle, vertical/horizontal SWL gauges),
+    applies the same overrides as create_case, re-validates the merged case
+    (including the domain-contains-geometry guard) and writes the result.
+    Files that violate the vocabulary (3D domains, multiple obstacles,
+    diagonal gauges, ...) are rejected with DSPH_BAD_INPUT.
+
+    Args:
+        path: Case XML to edit (with or without .xml suffix).
+        overrides: Same keys as create_case; e.g. {"column_height": 1.5,
+            "obstacle": {"x": 2.5, "width": 0.1, "height": 0.1}}. An empty
+            dict revalidates and rewrites the file in canonical form.
+        save_path: Write the edited case here instead of overwriting path.
+    """
+    try:
+        result = casegen.edit_case(path=path, overrides=overrides, save_path=save_path)
+    except DualSphysError as exc:
+        raise ToolError(str(exc)) from exc
+    return CaseEdited(**result)
+
+
+@mcp.tool()
+def describe_case(path: str) -> CaseDescribed:
+    """Summarise a `*_Def.xml` case: geometry, timing, gauges, particle estimate.
+
+    Read-only self-check loop for case design: reports dp, the domain box,
+    water column / tank / obstacle dimensions, TimeMax/TimeOut, gauges and a
+    lattice-arithmetic particle estimate (fluid/bound/total) to compare with
+    gencase's real counts. Accepts the same 2D dam-break-family vocabulary as
+    edit_case (the official CaseDambreakVal2D layout parses fine).
+    """
+    try:
+        result = casegen.describe_case(path=path)
+    except DualSphysError as exc:
+        raise ToolError(str(exc)) from exc
+    return CaseDescribed(**result)
 
 
 @mcp.tool()
