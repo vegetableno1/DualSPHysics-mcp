@@ -1,0 +1,7 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discussions (Q&A, usage, showcase)
+    url: https://github.com/vegetableno1/DualSPHysics-mcp/discussions
+    about: >-
+      Usage questions and general discussion belong in Discussions, not in
+      issues.
