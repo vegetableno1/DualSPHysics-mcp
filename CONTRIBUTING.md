@@ -23,7 +23,7 @@ The suite must be **fully green on a machine without any DualSPHysics
 installation**. Tests marked `solver` exercise a real local toolchain and
 auto-skip when none is found; everything else (tool discovery, command
 construction, Run.out/CSV parsing against real log fixtures, validation math,
-and a stdio end-to-end test that drives all seven tools) always runs.
+and a stdio end-to-end test that drives all ten tools) always runs.
 
 To prove you are in the no-solver world — this is exactly the environment CI
 runs — force discovery to fail:
