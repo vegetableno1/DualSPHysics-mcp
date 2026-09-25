@@ -17,10 +17,9 @@
 
 本 server 只以子进程方式调用 DualSPHysics 命令行工具，**不分发**
 DualSPHysics 本体：DualSPHysics 是 **LGPL-2.1-or-later** 自由软件，本包
-既不链接也不分发其代码/二进制，因此本仓库的 MIT 许可证不产生额外义务。
-若在发表的工作中使用 DualSPHysics，请引用 *Dominguez et al. (2022),
-Computational Particle Mechanics 9:867–895,
-[doi:10.1007/s40571-021-00404-2](https://doi.org/10.1007/s40571-021-00404-2)。*
+不链接、不分发其代码/二进制，MIT 许可证无额外义务。发表工作使用
+DualSPHysics 请引用 *Dominguez et al. (2022), Computational Particle
+Mechanics 9:867–895, [doi:10.1007/s40571-021-00404-2](https://doi.org/10.1007/s40571-021-00404-2)。*
 
 ## 工具
 
@@ -52,8 +51,7 @@ Computational Particle Mechanics 9:867–895,
 - `Run.out` 里的 `Time/Sec` 是"每模拟秒的墙钟秒数"——不是步/秒；行尾是求解器自估的完成时间。
 - `Run.out` 行格式在求解器 v5.0/v5.2 与 v5.4 之间不同；解析器两者兼容。
 
-全部契约（十四条，含精确格式与退出码）见
-[docs/domain-contracts.md](docs/domain-contracts.md)（英文）。
+全部契约（十四条，格式与退出码）见 [docs/domain-contracts.md](docs/domain-contracts.md)（英文）。
 
 ## 安装
 
@@ -89,11 +87,10 @@ DSPH_OMP_THREADS=8               # 可选，默认全部核心
 ```bash
 .venv/bin/python mcp_server.py    # hub 风格入口（stdio）
 .venv/bin/dualsphysics-mcp        # console script
-uvx dualsphysics-mcp              # PyPI 发布后
+uvx dualsphysics-mcp              # 已发布到 PyPI
 ```
 
-客户端注册模板（uvx 与本地 venv 两个版本）见
-[`examples/mcp_config.example.json`](examples/mcp_config.example.json)：
+客户端注册模板见 [`examples/mcp_config.example.json`](examples/mcp_config.example.json)：
 
 ```json
 { "mcpServers": { "dualsphysics-mcp": { "command": "uvx", "args": ["dualsphysics-mcp"] } } }
@@ -123,6 +120,8 @@ i5-10210U）：
 | 前锋误差，坍塌早期（t ≤ 0.2 s） | 在 ±0.01–0.16 m 内 |
 | 撞壁 | 前锋于 t ≈ **0.67 s** 钉在 3.98 m |
 
+![仿真溃坝前锋 vs 1996 实验](docs/img/validation_dambreak.png)
+
 残差是 SPH 物理本身，不是测量方法的问题：前锋提取与求解器自带的 SWL
 gauge 交叉核对过（平均偏差 8 mm，小于 10 mm 点距），且实验序列止于
 X/a ≈ 4.13、超出 4 m 水箱，撞壁后对比饱和——`validate_dambreak` 会给出
@@ -142,7 +141,9 @@ validate_dambreak(csv_path="<measure csv>", points_file="examples/dambreak_val2d
 ```
 
 `validate_dambreak` 返回逐时刻误差与 MAE / RMSE / 最大误差（米，及占
-1 m 水柱的百分比）。
+1 m 水柱的百分比）。上图由 `examples/make_validation_figure.py` 生成；
+`examples/render_dambreak.py` 可把同一轮的 `Part_*.vtk` 渲染成 MP4 动画
+（dev 依赖）。
 
 ## 测试
 
@@ -158,7 +159,7 @@ uv run ruff check .
 ## 目录
 
 - `src/dualsphysics_mcp/` —— MCP server、工具发现与配置、错误码、`tools/` 下的十个工具。
-- `examples/` —— 溃坝验证案例、`create_case_demo.py`、客户端注册模板。
+- `examples/` —— 验证案例、`create_case_demo.py`、对比图/动画脚本、客户端注册模板。
 - `tests/` —— pytest 套件（求解器用例自动跳过）。
 
 ## 仓库规则

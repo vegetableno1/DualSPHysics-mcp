@@ -21,11 +21,10 @@ experiment with per-time errors and MAE / RMSE / max.
 
 The server only launches the DualSPHysics command-line tools as subprocesses;
 DualSPHysics itself is **not** distributed here — it is free
-**LGPL-2.1-or-later** software, and since this package neither links nor
-redistributes its code or binaries, the repository's MIT licence carries no
-additional obligations. If you publish work using DualSPHysics, cite
-*Dominguez et al. (2022), Computational Particle Mechanics 9:867–895,
-[doi:10.1007/s40571-021-00404-2](https://doi.org/10.1007/s40571-021-00404-2).*
+**LGPL-2.1-or-later** software, this package neither links nor redistributes
+its code or binaries, so the MIT licence carries no extra obligations. If you
+publish work using DualSPHysics, cite *Dominguez et al. (2022), Computational
+Particle Mechanics 9:867–895, [doi:10.1007/s40571-021-00404-2](https://doi.org/10.1007/s40571-021-00404-2).*
 
 ## Tools
 
@@ -57,8 +56,7 @@ Behaviours of the wrapped tools that their `-h` output does not tell you:
 - `Time/Sec` in `Run.out` is wall-clock seconds per simulated second — not steps/second; the row tail is the solver's projected finish.
 - `Run.out` row formats differ between solver v5.0/v5.2 and v5.4; the parser handles both.
 
-All fourteen contracts, with exact formats and exit codes:
-[docs/domain-contracts.md](docs/domain-contracts.md).
+All fourteen contracts (formats, exit codes): [docs/domain-contracts.md](docs/domain-contracts.md).
 
 ## Install
 
@@ -94,11 +92,10 @@ DSPH_OMP_THREADS=8                  # optional, default all cores
 ```bash
 .venv/bin/python mcp_server.py    # hub-style entry point (stdio)
 .venv/bin/dualsphysics-mcp        # console script
-uvx dualsphysics-mcp              # once published to PyPI
+uvx dualsphysics-mcp              # published on PyPI
 ```
 
-Client registration templates (uvx and local-venv variants) live in
-[`examples/mcp_config.example.json`](examples/mcp_config.example.json):
+Client registration templates: [`examples/mcp_config.example.json`](examples/mcp_config.example.json):
 
 ```json
 { "mcpServers": { "dualsphysics-mcp": { "command": "uvx", "args": ["dualsphysics-mcp"] } } }
@@ -129,11 +126,12 @@ i5-10210U):
 | Dam-tip error, early collapse (t ≤ 0.2 s) | within ±0.01–0.16 m |
 | Wall impact | front pins at 3.98 m at t ≈ **0.67 s** |
 
+![Simulated surge front vs the 1996 experiment](docs/img/validation_dambreak.png)
+
 The residual is SPH physics, not a measurement artefact: the front extraction
-tracks the solver's own SWL gauge (mean deviation 8 mm, within the 10 mm point
-spacing), and the experiment ends at X/a ≈ 4.13 — beyond the 4 m tank — so the
-comparison saturates after wall impact (`validate_dambreak` reports
-`impact_time_s` and says so in `notes`).
+tracks the solver's own SWL gauge (mean deviation 8 mm < 10 mm point spacing),
+and the experiment ends at X/a ≈ 4.13 — beyond the 4 m tank — so the
+comparison saturates after wall impact (`validate_dambreak` notes `impact_time_s`).
 
 Agent transcript:
 
@@ -149,7 +147,9 @@ validate_dambreak(csv_path="<measure csv>", points_file="examples/dambreak_val2d
 ```
 
 `validate_dambreak` reports per-time errors plus MAE / RMSE / max in metres
-and as % of the 1 m column.
+and as % of the 1 m column. The figure comes from
+`examples/make_validation_figure.py`; `examples/render_dambreak.py` turns the
+same run's `Part_*.vtk` into an MP4 animation (dev dependencies).
 
 ## Tests
 
@@ -166,7 +166,7 @@ auto-skip otherwise.
 ## Contents
 
 - `src/dualsphysics_mcp/` — MCP server, tool discovery and config, error codes, the ten tools in `tools/`.
-- `examples/` — dam-break validation case, `create_case_demo.py`, client registration template.
+- `examples/` — validation case, `create_case_demo.py`, figure + animation scripts, client template.
 - `tests/` — pytest suite (solver tests auto-skip).
 
 ## Repository rules

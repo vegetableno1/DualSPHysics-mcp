@@ -28,6 +28,7 @@ htmlcov/
 
 # --- DualSPHysics 运行产物（大文件，按需 git add -f 保留示例输出）---
 *_out/
+jobs/
 Part_*.bi4
 Part_*.vtu
 
