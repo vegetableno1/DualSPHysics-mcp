@@ -122,6 +122,66 @@ class TestCli:
         assert "not found" in capsys.readouterr().err
 
 
+class TestViewport:
+    def test_cli_viewport_defaults_to_none(self) -> None:
+        args = render.build_parser().parse_args(["--dirdata", "p"])
+        assert (args.xmin, args.xmax, args.zmin, args.zmax) == (None, None, None, None)
+
+    def test_cli_viewport_explicit_values(self) -> None:
+        args = render.build_parser().parse_args(
+            ["--dirdata", "p", "--zmin", "-0.4", "--zmax", "2.1", "--xmin", "-0.5", "--xmax", "4"]
+        )
+        assert (args.xmin, args.xmax, args.zmin, args.zmax) == (-0.5, 4.0, -0.4, 2.1)
+
+    def test_check_viewport_accepts_none_mixes(self) -> None:
+        render.check_viewport(None, None, None, None)
+        render.check_viewport(None, 4.0, -0.4, None)
+        render.check_viewport(-1.0, 4.0, -0.4, 2.1)
+
+    @pytest.mark.parametrize(
+        ("xmin", "xmax", "zmin", "zmax"),
+        [
+            (4.0, -1.0, None, None),  # inverted x
+            (None, None, 2.1, -0.4),  # inverted z
+            (1.0, 1.0, None, None),  # degenerate
+            (float("nan"), 1.0, None, None),  # non-finite
+        ],
+    )
+    def test_check_viewport_rejects_bad_pairs(
+        self, xmin: object, xmax: object, zmin: object, zmax: object
+    ) -> None:
+        with pytest.raises(render.RenderError, match="viewport"):
+            render.check_viewport(xmin, xmax, zmin, zmax)
+
+    def test_viewport_limits_full_override_is_verbatim(self) -> None:
+        numpy = pytest.importorskip("numpy")
+        values = [numpy.array([0.0, 4.0]), numpy.array([1.0, 3.0])]
+        assert render.viewport_limits(values, -0.4, 2.1) == (-0.4, 2.1)
+
+    def test_viewport_limits_partial_override_keeps_auto_side(self) -> None:
+        numpy = pytest.importorskip("numpy")
+        values = [numpy.array([0.0, 4.0])]
+        auto_lo, auto_hi = render.viewport_limits(values, None, None)
+        assert render.viewport_limits(values, -0.4, None) == (-0.4, auto_hi)
+        assert render.viewport_limits(values, None, 2.1) == (auto_lo, 2.1)
+        assert auto_lo < 0.0 and auto_hi > 4.0  # auto window pads the data
+
+    def test_viewport_limits_override_crossing_auto_extent_raises(self) -> None:
+        numpy = pytest.importorskip("numpy")
+        values = [numpy.array([0.0, 4.0])]  # auto hi ~= 4.12 after padding
+        with pytest.raises(render.RenderError, match="min must be < max"):
+            render.viewport_limits(values, 5.0, None)
+
+    def test_main_rejects_inverted_viewport_before_reading_frames(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert (
+            render.main(["--dirdata", "/nonexistent-dir-xyz", "--zmin", "2.1", "--zmax", "-0.4"])
+            == 2
+        )
+        assert "viewport" in capsys.readouterr().err
+
+
 class TestDependencies:
     def test_speed_magnitude(self) -> None:
         numpy = pytest.importorskip("numpy")

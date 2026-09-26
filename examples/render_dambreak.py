@@ -16,6 +16,15 @@ particles, TimeOut=0.01 s)::
         --dirdata <job_dir>/particles --every 2 --fps 24 --tout 0.01 \\
         --out dambreak_animation.mp4
 
+Viewport cropping: ``--xmin/--xmax/--zmin/--zmax`` restrict an axis to the
+action region instead of the full data extent (each is optional and defaults
+to the auto limit). Cropping the empty sky above the tank makes the water
+fill the frame, e.g. for a 5 s run (~501 parts)::
+
+    python examples/render_dambreak.py \\
+        --dirdata <job_dir>/particles --every 4 --fps 24 --tout 0.01 \\
+        --zmin -0.4 --zmax 2.1 --out dambreak_animation_5s.mp4
+
 Heavy dependencies (pyvista for VTK reading, matplotlib for drawing,
 imageio-ffmpeg for encoding) are imported lazily and each comes with a clear
 install hint when missing. Frame selection (--every/--first/--last) and VTK
@@ -151,6 +160,46 @@ def _axis_limits(values: list[np.ndarray], pad_frac: float = 0.03) -> tuple[floa
     return lo - span * pad_frac, hi + span * pad_frac
 
 
+def check_viewport(
+    xmin: float | None, xmax: float | None, zmin: float | None, zmax: float | None
+) -> None:
+    """Reject inverted/degenerate viewport pairs before any VTK is read.
+
+    Each check is skipped while one side is None (a mixed window like
+    ``--zmin -0.4`` alone is legal; the open side stays auto and is only
+    comparable once the data extent is known — see :func:`viewport_limits`).
+    NaN comparisons are False, so non-finite limits fail here too.
+    """
+    for lo_name, lo, hi_name, hi in (("xmin", xmin, "xmax", xmax), ("zmin", zmin, "zmax", zmax)):
+        if lo is not None and hi is not None and not lo < hi:
+            raise RenderError(
+                f"--{lo_name} must be < --{hi_name}, got {lo:g} vs {hi:g} "
+                "(viewport min/max are inverted or not finite)"
+            )
+
+
+def viewport_limits(
+    values: list[np.ndarray],
+    lo: float | None,
+    hi: float | None,
+    pad_frac: float = 0.03,
+) -> tuple[float, float]:
+    """Axis window for one axis: auto extent with optional per-side overrides.
+
+    An explicit limit replaces the auto one VERBATIM (no padding added), so
+    ``--zmin -0.4 --zmax 2.1`` crops z to exactly that band while the
+    untouched axes keep the padded full-data extent.
+    """
+    auto_lo, auto_hi = _axis_limits(values, pad_frac)
+    eff_lo = auto_lo if lo is None else float(lo)
+    eff_hi = auto_hi if hi is None else float(hi)
+    if not eff_lo < eff_hi:
+        raise RenderError(
+            f"viewport min must be < max after overrides, got [{eff_lo:g}, {eff_hi:g}]"
+        )
+    return eff_lo, eff_hi
+
+
 def render_animation(
     dirdata: Path,
     out: Path,
@@ -162,8 +211,13 @@ def render_animation(
     tout: float | None = None,
     vmax: float | None = None,
     dpi: int = 100,
+    xmin: float | None = None,
+    xmax: float | None = None,
+    zmin: float | None = None,
+    zmax: float | None = None,
 ) -> Path:
     """Render the selected frames and encode them; returns the MP4 path."""
+    check_viewport(xmin, xmax, zmin, zmax)  # cheap sanity before reading any VTK
     files = select_frames(find_vtk_files(dirdata), every=every, first=first, last=last)
     if not files:
         raise RenderError(f"no Part_*.vtk frames matched in {dirdata} (adjust --first/--last)")
@@ -183,8 +237,8 @@ def render_animation(
     import matplotlib.pyplot as plt
     from matplotlib.backends.backend_agg import FigureCanvasAgg
 
-    x_lo, x_hi = _axis_limits([x for x, _, _ in frames])
-    z_lo, z_hi = _axis_limits([z for _, z, _ in frames])
+    x_lo, x_hi = viewport_limits([x for x, _, _ in frames], xmin, xmax)
+    z_lo, z_hi = viewport_limits([z for _, z, _ in frames], zmin, zmax)
     span_ratio = (z_hi - z_lo) / max(x_hi - x_lo, 1e-9)
     fig_w = 12.0
     fig_h = min(max(fig_w * span_ratio * 1.12, 4.0), 12.0)  # colorbar row + margins
@@ -303,6 +357,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--vmax", type=float, default=None, help="fixed colour-scale maximum")
     parser.add_argument("--dpi", type=positive_int, default=100, help="render resolution")
+    parser.add_argument(
+        "--xmin",
+        type=float,
+        default=None,
+        help="viewport: lower x limit (default: auto from the particle data)",
+    )
+    parser.add_argument(
+        "--xmax",
+        type=float,
+        default=None,
+        help="viewport: upper x limit (default: auto from the particle data)",
+    )
+    parser.add_argument(
+        "--zmin",
+        type=float,
+        default=None,
+        help="viewport: lower z limit, e.g. -0.4 to crop below the tank floor",
+    )
+    parser.add_argument(
+        "--zmax",
+        type=float,
+        default=None,
+        help="viewport: upper z limit, e.g. 2.1 to crop the empty sky above the action",
+    )
     return parser
 
 
@@ -320,6 +398,10 @@ def main(argv: list[str] | None = None) -> int:
             tout=args.tout,
             vmax=args.vmax,
             dpi=args.dpi,
+            xmin=args.xmin,
+            xmax=args.xmax,
+            zmin=args.zmin,
+            zmax=args.zmax,
         )
     except RenderError as exc:
         print(f"error: {exc}", file=sys.stderr)
